@@ -251,7 +251,7 @@ end
 
 local function fetchAudio(animationId)
     local filePath = "stalkie/audios/" .. animationId .. ".mp3"
-    local url = "https://github.com/SystemNasa/joe/raw/refs/heads/main/audios/" .. animationId .. ".mp3"
+    local url = "https://github.com/SystemNasa/roblox/raw/refs/heads/main/audios/" .. animationId .. ".mp3"
     local success, response = pcall(function()
         return game:HttpGet(url)
     end)
