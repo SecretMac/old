@@ -45,7 +45,7 @@ local hasFetchedAnimations = false
 local function fetchAnimationsFromGitHub()
     if hasFetchedAnimations then return end
     hasFetchedAnimations = true
-    local url = "https://raw.githubusercontent.com/SystemNasa/joe/refs/heads/main/anims.lua"
+    local url = "https://raw.githubusercontent.com/SystemNasa/roblox/refs/heads/main/anims.lua"
     local success, response = pcall(function()
         return game:HttpGet(url)
     end)
@@ -365,7 +365,7 @@ end
 
 local function preloadAudios()
     ensureAudiosFolder()
-    local url = "https://raw.githubusercontent.com/SystemNasa/joe/refs/heads/main/audios/ids.json"
+    local url = "https://raw.githubusercontent.com/SystemNasa/roblox/refs/heads/main/audios/ids.json"
     local success, response = pcall(function()
         return game:HttpGet(url)
     end)
@@ -1201,7 +1201,7 @@ local function createAnimationListGui()
 
     local audioIds = {}
     local function loadAudioIds()
-        local url = "https://raw.githubusercontent.com/SystemNasa/joe/refs/heads/main/audios/ids.json"
+        local url = "https://raw.githubusercontent.com/SystemNasa/roblox/refs/heads/main/audios/ids.json"
         local success, response = pcall(function()
             return game:HttpGet(url)
         end)
