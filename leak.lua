@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 
 -- LeakCheck API configuration
-local API_KEY = "b940697bd0249b6bee2e7a2b026fd6d7f6951f73"
+local API_KEY = "00c79144cbed79675a5223a7a6241b7256ffedeb"
 local API_URL = "https://leakcheck.io/api/v2/query/"
 local FREE_API_URL = "https://leakcheck.io/api/public?check="
 
