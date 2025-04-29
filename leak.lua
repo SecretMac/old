@@ -1439,7 +1439,7 @@ local function createScanButton(player)
         scanCooldown = true
         local result = checkLeakCheck(player.Name)
         showResult(player, result)
-        task.delay(5, function()
+        task.delay(3, function()
             scanCooldown = false
         end)
     end)
