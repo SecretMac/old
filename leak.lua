@@ -29,7 +29,7 @@ local EMOJI_GREEN = "🟢"
 local EMOJI_RED = "🔴"
 
 -- Sound IDs
-local GUI_APPEAR_SOUND_ID = "rbxassetid://11591689125415"
+local GUI_APPEAR_SOUND_ID = "rbxassetid://1"
 local LEAK_FOUND_SOUND_ID = "rbxassetid://140419294351439"
 
 -- Create ScreenGui for all UI elements
