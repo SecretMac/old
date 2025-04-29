@@ -29,7 +29,6 @@ local EMOJI_GREEN = "🟢"
 local EMOJI_RED = "🔴"
 
 -- Sound IDs
-local GUI_APPEAR_SOUND_ID = "rbxassetid://1"
 local LEAK_FOUND_SOUND_ID = "rbxassetid://140419294351439"
 
 -- Create ScreenGui for all UI elements
@@ -123,13 +122,6 @@ end)
 CloseButton.MouseLeave:Connect(function()
     TweenService:Create(CloseButton, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
 end)
-
--- Play sound when GUI appears
-local guiAppearSound = Instance.new("Sound")
-guiAppearSound.SoundId = GUI_APPEAR_SOUND_ID
-guiAppearSound.Volume = 2
-guiAppearSound.Parent = StatusFrame
-guiAppearSound:Play()
 
 -- Animate Status GUI appearance
 local function animateGuiAppearance()
