@@ -166,9 +166,40 @@ local function animateStatusEmoji()
     isAnimating = false
 end
 
+-- Global cooldown variables
+local scanCooldown = false
+local cooldownEndTime = 0
+
+-- Function to update all buttons' cooldown visuals
+local function updateAllButtonsCooldown()
+    if not scanCooldown then return end
+
+    local timeLeft = cooldownEndTime - tick()
+    if timeLeft <= 0 then
+        -- End cooldown
+        scanCooldown = false
+        for _, data in pairs(playerScanButtons) do
+            local button = data.button
+            button.BackgroundColor3 = COLOR_ACCENT
+            button.Text = "Scan"
+            -- Ensure button is visible and at correct transparency if player is in range
+            if button.Visible then
+                TweenService:Create(button, TweenInfo.new(0.2), { BackgroundTransparency = 0.2, TextTransparency = 0 }):Play()
+            end
+        end
+    else
+        -- Update countdown text
+        local countdown = math.ceil(timeLeft)
+        for _, data in pairs(playerScanButtons) do
+            local button = data.button
+            button.BackgroundColor3 = Color3.fromRGB(100, 100, 100) -- Gray during cooldown
+            button.Text = tostring(countdown)
+        end
+    end
+end
+
 -- Toggle scan functionality
 local isScanningEnabled = true
-local scanCooldown = false
 
 StatusButton.MouseButton1Click:Connect(function()
     isScanningEnabled = not isScanningEnabled
@@ -913,213 +944,211 @@ local function showResult(player, result)
     end
 
     PrevButton.MouseButton1Click:Connect(function()
-        if playerResultWindows[player] and playerResultWindows[player].currentLeakIndex > 1 then
-            playerResultWindows[player].currentLeakIndex = playerResultWindows[player].currentLeakIndex - 1
-            for _, child in ipairs(ResultList:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child:Destroy()
-                end
+        if not playerResultWindows[player] or playerResultWindows[player].currentLeakIndex <= 1 then return end
+        playerResultWindows[player].currentLeakIndex = playerResultWindows[player].currentLeakIndex - 1
+        for _, child in ipairs(ResultList:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
             end
-            local leak = playerResultWindows[player].leaks[playerResultWindows[player].currentLeakIndex]
-            local fieldsList = {
-                { field = "Source", value = leak.source, emoji = EMOJI_GLOBE },
-                { field = "Date", value = leak.date, emoji = EMOJI_CALENDAR }
-            }
-            if leak.origin and leak.origin ~= "Unknown" then
-                table.insert(fieldsList, { field = "Origin", value = leak.origin, emoji = EMOJI_GLOBE })
-            end
-            for field, value in pairs(leak.fields) do
-                table.insert(fieldsList, { field = field, value = tostring(value), emoji = nil })
-            end
-
-            local resultScroll = ResultFrame:FindFirstChild("ResultScroll")
-            if resultScroll then
-                resultScroll.Size = UDim2.new(0.9, 0, #playerResultWindows[player].leaks > 1 and 0.7 or 0.8, 0)
-            end
-
-            if #fieldsList == 0 then
-                local noneLabel = Instance.new("TextButton")
-                noneLabel.Size = UDim2.new(1, 0, 0, 20)
-                noneLabel.BackgroundTransparency = 1
-                noneLabel.Text = "None"
-                noneLabel.TextColor3 = COLOR_TEXT
-                noneLabel.TextSize = 14
-                noneLabel.Font = Enum.Font.GothamBold
-                noneLabel.TextXAlignment = Enum.TextXAlignment.Left
-                noneLabel.TextTransparency = 0
-                noneLabel.AutoButtonColor = false
-                noneLabel.Parent = ResultList
-                noneLabel.MouseButton1Click:Connect(function()
-                    setclipboard("None")
-                    TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
-                    task.delay(0.2, function()
-                        TweenService:Create(noneLabel, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
-                    end)
-                end)
-                noneLabel.MouseEnter:Connect(function()
-                    TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
-                end)
-                noneLabel.MouseLeave:Connect(function()
-                    TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
-                end)
-            else
-                for _, entry in ipairs(fieldsList) do
-                    local fieldLabel = Instance.new("TextButton")
-                    fieldLabel.Size = UDim2.new(1, 0, 0, 20)
-                    fieldLabel.BackgroundTransparency = 1
-                    fieldLabel.Text = (entry.emoji or "") .. " " .. capitalize(entry.field)
-                    fieldLabel.TextColor3 = COLOR_TEXT
-                    fieldLabel.TextSize = 14
-                    fieldLabel.Font = Enum.Font.GothamBold
-                    fieldLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    fieldLabel.TextTransparency = 0
-                    fieldLabel.AutoButtonColor = false
-                    fieldLabel.Parent = ResultList
-                    fieldLabel.MouseEnter:Connect(function()
-                        TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
-                    end)
-                    fieldLabel.MouseLeave:Connect(function()
-                        TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
-                    end)
-
-                    local valueButton = Instance.new("TextButton")
-                    valueButton.Size = UDim2.new(1, 0, 0, 20)
-                    valueButton.BackgroundTransparency = 1
-                    valueButton.Text = "  " .. entry.value
-                    valueButton.TextColor3 = COLOR_TEXT
-                    valueButton.TextSize = 14
-                    valueButton.Font = Enum.Font.Gotham
-                    valueButton.TextXAlignment = Enum.TextXAlignment.Left
-                    valueButton.TextTransparency = 0
-                    valueButton.AutoButtonColor = false
-                    valueButton.Parent = ResultList
-                    valueButton.MouseButton1Click:Connect(function()
-                        setclipboard(entry.value)
-                        TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
-                        task.delay(0.2, function()
-                            TweenService:Create(valueButton, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
-                        end)
-                    end)
-                    valueButton.MouseEnter:Connect(function()
-                        TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
-                    end)
-                    valueButton.MouseLeave:Connect(function()
-                        TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
-                    end)
-                end
-            end
-
-            PageLabel.Text = tostring(playerResultWindows[player].currentLeakIndex) .. " / " .. tostring(#playerResultWindows[player].leaks)
-            PrevButton.BackgroundTransparency = playerResultWindows[player].currentLeakIndex == 1 and 0.8 or 0.2
-            PrevButton.TextTransparency = playerResultWindows[player].currentLeakIndex == 1 and 0.8 or 0
-            NextButton.BackgroundTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0.2
-            NextButton.TextTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0
         end
+        local leak = playerResultWindows[player].leaks[playerResultWindows[player].currentLeakIndex]
+        local fieldsList = {
+            { field = "Source", value = leak.source, emoji = EMOJI_GLOBE },
+            { field = "Date", value = leak.date, emoji = EMOJI_CALENDAR }
+        }
+        if leak.origin and leak.origin ~= "Unknown" then
+            table.insert(fieldsList, { field = "Origin", value = leak.origin, emoji = EMOJI_GLOBE })
+        end
+        for field, value in pairs(leak.fields) do
+            table.insert(fieldsList, { field = field, value = tostring(value), emoji = nil })
+        end
+
+        local resultScroll = ResultFrame:FindFirstChild("ResultScroll")
+        if resultScroll then
+            resultScroll.Size = UDim2.new(0.9, 0, #playerResultWindows[player].leaks > 1 and 0.7 or 0.8, 0)
+        end
+
+        if #fieldsList == 0 then
+            local noneLabel = Instance.new("TextButton")
+            noneLabel.Size = UDim2.new(1, 0, 0, 20)
+            noneLabel.BackgroundTransparency = 1
+            noneLabel.Text = "None"
+            noneLabel.TextColor3 = COLOR_TEXT
+            noneLabel.TextSize = 14
+            noneLabel.Font = Enum.Font.GothamBold
+            noneLabel.TextXAlignment = Enum.TextXAlignment.Left
+            noneLabel.TextTransparency = 0
+            noneLabel.AutoButtonColor = false
+            noneLabel.Parent = ResultList
+            noneLabel.MouseButton1Click:Connect(function()
+                setclipboard("None")
+                TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
+                task.delay(0.2, function()
+                    TweenService:Create(noneLabel, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
+                end)
+            end)
+            noneLabel.MouseEnter:Connect(function()
+                TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+            end)
+            noneLabel.MouseLeave:Connect(function()
+                TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
+            end)
+        else
+            for _, entry in ipairs(fieldsList) do
+                local fieldLabel = Instance.new("TextButton")
+                fieldLabel.Size = UDim2.new(1, 0, 0, 20)
+                fieldLabel.BackgroundTransparency = 1
+                fieldLabel.Text = (entry.emoji or "") .. " " .. capitalize(entry.field)
+                fieldLabel.TextColor3 = COLOR_TEXT
+                fieldLabel.TextSize = 14
+                fieldLabel.Font = Enum.Font.GothamBold
+                fieldLabel.TextXAlignment = Enum.TextXAlignment.Left
+                fieldLabel.TextTransparency = 0
+                fieldLabel.AutoButtonColor = false
+                fieldLabel.Parent = ResultList
+                fieldLabel.MouseEnter:Connect(function()
+                    TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+                end)
+                fieldLabel.MouseLeave:Connect(function()
+                    TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
+                end)
+
+                local valueButton = Instance.new("TextButton")
+                valueButton.Size = UDim2.new(1, 0, 0, 20)
+                valueButton.BackgroundTransparency = 1
+                valueButton.Text = "  " .. entry.value
+                valueButton.TextColor3 = COLOR_TEXT
+                valueButton.TextSize = 14
+                valueButton.Font = Enum.Font.Gotham
+                valueButton.TextXAlignment = Enum.TextXAlignment.Left
+                valueButton.TextTransparency = 0
+                valueButton.AutoButtonColor = false
+                valueButton.Parent = ResultList
+                valueButton.MouseButton1Click:Connect(function()
+                    setclipboard(entry.value)
+                    TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
+                    task.delay(0.2, function()
+                        TweenService:Create(valueButton, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
+                    end)
+                end)
+                valueButton.MouseEnter:Connect(function()
+                    TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+                end)
+                valueButton.MouseLeave:Connect(function()
+                    TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
+                end)
+            end
+        end
+
+        PageLabel.Text = tostring(playerResultWindows[player].currentLeakIndex) .. " / " .. tostring(#playerResultWindows[player].leaks)
+        PrevButton.BackgroundTransparency = playerResultWindows[player].currentLeakIndex == 1 and 0.8 or 0.2
+        PrevButton.TextTransparency = playerResultWindows[player].currentLeakIndex == 1 and 0.8 or 0
+        NextButton.BackgroundTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0.2
+        NextButton.TextTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0
     end)
 
     NextButton.MouseButton1Click:Connect(function()
-        if playerResultWindows[player] and playerResultWindows[player].currentLeakIndex < #playerResultWindows[player].leaks then
-            playerResultWindows[player].currentLeakIndex = playerResultWindows[player].currentLeakIndex + 1
-            for _, child in ipairs(ResultList:GetChildren()) do
-                if child:IsA("TextButton") then
-                    child:Destroy()
-                end
+        if not playerResultWindows[player] or playerResultWindows[player].currentLeakIndex >= #playerResultWindows[player].leaks then return end
+        playerResultWindows[player].currentLeakIndex = playerResultWindows[player].currentLeakIndex + 1
+        for _, child in ipairs(ResultList:GetChildren()) do
+            if child:IsA("TextButton") then
+                child:Destroy()
             end
-            local leak = playerResultWindows[player].leaks[playerResultWindows[player].currentLeakIndex]
-            local fieldsList = {
-                { field = "Source", value = leak.source, emoji = EMOJI_GLOBE },
-                { field = "Date", value = leak.date, emoji = EMOJI_CALENDAR }
-            }
-            if leak.origin and leak.origin ~= "Unknown" then
-                table.insert(fieldsList, { field = "Origin", value = leak.origin, emoji = EMOJI_GLOBE })
-            end
-            for field, value in pairs(leak.fields) do
-                table.insert(fieldsList, { field = field, value = tostring(value), emoji = nil })
-            end
-
-            local resultScroll = ResultFrame:FindFirstChild("ResultScroll")
-            if resultScroll then
-                resultScroll.Size = UDim2.new(0.9, 0, #playerResultWindows[player].leaks > 1 and 0.7 or 0.8, 0)
-            end
-
-            if #fieldsList == 0 then
-                local noneLabel = Instance.new("TextButton")
-                noneLabel.Size = UDim2.new(1, 0, 0, 20)
-                noneLabel.BackgroundTransparency = 1
-                noneLabel.Text = "None"
-                noneLabel.TextColor3 = COLOR_TEXT
-                noneLabel.TextSize = 14
-                noneLabel.Font = Enum.Font.GothamBold
-                noneLabel.TextXAlignment = Enum.TextXAlignment.Left
-                noneLabel.TextTransparency = 0
-                noneLabel.AutoButtonColor = false
-                noneLabel.Parent = ResultList
-                noneLabel.MouseButton1Click:Connect(function()
-                    setclipboard("None")
-                    TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
-                    task.delay(0.2, function()
-                        TweenService:Create(noneLabel, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
-                    end)
-                end)
-                noneLabel.MouseEnter:Connect(function()
-                    TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
-                end)
-                noneLabel.MouseLeave:Connect(function()
-                    TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
-                end)
-            else
-                for _, entry in ipairs(fieldsList) do
-                    local fieldLabel = Instance.new("TextButton")
-                    fieldLabel.Size = UDim2.new(1, 0, 0, 20)
-                    fieldLabel.BackgroundTransparency = 1
-                    fieldLabel.Text = (entry.emoji or "") .. " " .. capitalize(entry.field)
-                    fieldLabel.TextColor3 = COLOR_TEXT
-                    fieldLabel.TextSize = 14
-                    fieldLabel.Font = Enum.Font.GothamBold
-                    fieldLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    fieldLabel.TextTransparency = 0
-                    fieldLabel.AutoButtonColor = false
-                    fieldLabel.Parent = ResultList
-                    fieldLabel.MouseEnter:Connect(function()
-                        TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
-                    end)
-                    fieldLabel.MouseLeave:Connect(function()
-                        TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
-                    end)
-
-                    local valueButton = Instance.new("TextButton")
-                    valueButton.Size = UDim2.new(1, 0, 0, 20)
-                    valueButton.BackgroundTransparency = 1
-                    valueButton.Text = "  " .. entry.value
-                    valueButton.TextColor3 = COLOR_TEXT
-                    valueButton.TextSize = 14
-                    valueButton.Font = Enum.Font.Gotham
-                    valueButton.TextXAlignment = Enum.TextXAlignment.Left
-                    valueButton.TextTransparency = 0
-                    valueButton.AutoButtonColor = false
-                    valueButton.Parent = ResultList
-                    valueButton.MouseButton1Click:Connect(function()
-                        setclipboard(entry.value)
-                        TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
-                        task.delay(0.2, function()
-                            TweenService:Create(valueButton, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
-                        end)
-                    end)
-                    valueButton.MouseEnter:Connect(function()
-                        TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
-                    end)
-                    valueButton.MouseLeave:Connect(function()
-                        TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
-                    end)
-                end
-            end
-
-            PageLabel.Text = tostring(playerResultWindows[player].currentLeakIndex) .. " / " .. tostring(#playerResultWindows[player].leaks)
-            PrevButton.BackgroundTransparency = 0.2
-            PrevButton.TextTransparency = 0
-            NextButton.BackgroundTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0.2
-            NextButton.TextTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0
         end
+        local leak = playerResultWindows[player].leaks[playerResultWindows[player].currentLeakIndex]
+        local fieldsList = {
+            { field = "Source", value = leak.source, emoji = EMOJI_GLOBE },
+            { field = "Date", value = leak.date, emoji = EMOJI_CALENDAR }
+        }
+        if leak.origin and leak.origin ~= "Unknown" then
+            table.insert(fieldsList, { field = "Origin", value = leak.origin, emoji = EMOJI_GLOBE })
+        end
+        for field, value in pairs(leak.fields) do
+            table.insert(fieldsList, { field = field, value = tostring(value), emoji = nil })
+        end
+
+        local resultScroll = ResultFrame:FindFirstChild("ResultScroll")
+        if resultScroll then
+            resultScroll.Size = UDim2.new(0.9, 0, #playerResultWindows[player].leaks > 1 and 0.7 or 0.8, 0)
+        end
+
+        if #fieldsList == 0 then
+            local noneLabel = Instance.new("TextButton")
+            noneLabel.Size = UDim2.new(1, 0, 0, 20)
+            noneLabel.BackgroundTransparency = 1
+            noneLabel.Text = "None"
+            noneLabel.TextColor3 = COLOR_TEXT
+            noneLabel.TextSize = 14
+            noneLabel.Font = Enum.Font.GothamBold
+            noneLabel.TextXAlignment = Enum.TextXAlignment.Left
+            noneLabel.TextTransparency = 0
+            noneLabel.AutoButtonColor = false
+            noneLabel.Parent = ResultList
+            noneLabel.MouseButton1Click:Connect(function()
+                setclipboard("None")
+                TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
+                task.delay(0.2, function()
+                    TweenService:Create(noneLabel, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
+                end)
+            end)
+            noneLabel.MouseEnter:Connect(function()
+                TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+            end)
+            noneLabel.MouseLeave:Connect(function()
+                TweenService:Create(noneLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
+            end)
+        else
+            for _, entry in ipairs(fieldsList) do
+                local fieldLabel = Instance.new("TextButton")
+                fieldLabel.Size = UDim2.new(1, 0, 0, 20)
+                fieldLabel.BackgroundTransparency = 1
+                fieldLabel.Text = (entry.emoji or "") .. " " .. capitalize(entry.field)
+                fieldLabel.TextColor3 = COLOR_TEXT
+                fieldLabel.TextSize = 14
+                fieldLabel.Font = Enum.Font.GothamBold
+                fieldLabel.TextXAlignment = Enum.TextXAlignment.Left
+                fieldLabel.TextTransparency = 0
+                fieldLabel.AutoButtonColor = false
+                fieldLabel.Parent = ResultList
+                fieldLabel.MouseEnter:Connect(function()
+                    TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+                end)
+                fieldLabel.MouseLeave:Connect(function()
+                    TweenService:Create(fieldLabel, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
+                end)
+
+                local valueButton = Instance.new("TextButton")
+                valueButton.Size = UDim2.new(1, 0, 0, 20)
+                valueButton.BackgroundTransparency = 1
+                valueButton.Text = "  " .. entry.value
+                valueButton.TextColor3 = COLOR_TEXT
+                valueButton.TextSize = 14
+                valueButton.Font = Enum.Font.Gotham
+                valueButton.TextXAlignment = Enum.TextXAlignment.Left
+                valueButton.TextTransparency = 0
+                valueButton.AutoButtonColor = false
+                valueButton.Parent = ResultList
+                valueButton.MouseButton1Click:Connect(function()
+                    setclipboard(entry.value)
+                    TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_COPIED }):Play()
+                    task.delay(0.2, function()
+                        TweenService:Create(valueButton, TweenInfo.new(1.8), { TextColor3 = COLOR_TEXT }):Play()
+                    end)
+                end)
+                valueButton.MouseEnter:Connect(function()
+                    TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = Color3.fromRGB(200, 200, 200) }):Play()
+                end)
+                valueButton.MouseLeave:Connect(function()
+                    TweenService:Create(valueButton, TweenInfo.new(0.2), { TextColor3 = COLOR_TEXT }):Play()
+                end)
+            end
+        end
+
+        PageLabel.Text = tostring(playerResultWindows[player].currentLeakIndex) .. " / " .. tostring(#playerResultWindows[player].leaks)
+        PrevButton.BackgroundTransparency = 0.2
+        PrevButton.TextTransparency = 0
+        NextButton.BackgroundTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0.2
+        NextButton.TextTransparency = playerResultWindows[player].currentLeakIndex == #playerResultWindows[player].leaks and 0.8 or 0
     end)
 
     if FreeScanButton.Visible then
@@ -1414,7 +1443,7 @@ local function createScanButton(player)
 
         if onScreen and distance <= SCAN_DISTANCE and isScanningEnabled then
             button.Position = UDim2.new(0, screenPos.X - 40, 0, screenPos.Y)
-            if button.BackgroundTransparency > 0 then
+            if button.BackgroundTransparency > 0 and not scanCooldown then
                 TweenService:Create(button, TweenInfo.new(0.2), { BackgroundTransparency = 0.2, TextTransparency = 0 }):Play()
             end
             button.Visible = true
@@ -1433,17 +1462,24 @@ local function createScanButton(player)
 
     playerScanButtons[player].connection = RunService.Heartbeat:Connect(updateButton)
 
-    -- Scan button click
+    -- Scan button click with global cooldown
     button.MouseButton1Click:Connect(function()
-        if not isScanningEnabled or scanCooldown then return end
+        if not isScanningEnabled or scanCooldown then
+            return
+        end
+
+        -- Start global cooldown
         scanCooldown = true
+        cooldownEndTime = tick() + 3 -- 3 seconds from now
+
+        -- Perform the scan
         local result = checkLeakCheck(player.Name)
         showResult(player, result)
-        task.delay(3, function()
-            scanCooldown = false
-        end)
     end)
 end
+
+-- Add cooldown update loop
+RunService.Heartbeat:Connect(updateAllButtonsCooldown)
 
 -- Initialize buttons for existing players
 for _, player in ipairs(Players:GetPlayers()) do
