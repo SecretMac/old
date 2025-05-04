@@ -101,6 +101,13 @@ local favoriteAnimations = {}
 local animationKeybinds = {}
 local customAnimations = {}
 
+local KEYBIND_SPEED_FILE = "stalkie/speed_keybinds.json"
+local speedKeybindData = {
+    SlowMarker = {ratio = 0.2, key = "Q"}, -- Default values
+    FastMarker = {ratio = 0.8, key = "E"}
+}
+local speedKeybindFunctions = {}
+
 local function ensureStalkieFolder()
     if not isfolder("stalkie") then
         makefolder("stalkie")
@@ -202,9 +209,59 @@ local function loadKeybinds()
     end
 end
 
+local function saveSpeedKeybinds()
+    ensureStalkieFolder()
+    local dataToSave = {
+        SlowMarker = {
+            ratio = speedKeybindData.SlowMarker.ratio,
+            key = speedKeybindData.SlowMarker.key
+        },
+        FastMarker = {
+            ratio = speedKeybindData.FastMarker.ratio,
+            key = speedKeybindData.FastMarker.key
+        }
+    }
+
+    local success, encodedData = pcall(HttpService.JSONEncode, HttpService, dataToSave)
+    if success then
+        pcall(function()
+            writefile(KEYBIND_SPEED_FILE, encodedData)
+        end)
+    else
+        warn("Error encoding speed keybinds:", encodedData)
+    end
+end
+
+local function loadSpeedKeybinds()
+    ensureStalkieFolder()
+    local success, fileContent = pcall(readfile, KEYBIND_SPEED_FILE)
+    if success then
+        local decodeSuccess, decodedData = pcall(HttpService.JSONDecode, HttpService, fileContent)
+        if decodeSuccess and typeof(decodedData) == "table" then
+            if decodedData.SlowMarker and type(decodedData.SlowMarker.ratio) == "number" and type(decodedData.SlowMarker.key) == "string" and
+               decodedData.FastMarker and type(decodedData.FastMarker.ratio) == "number" and type(decodedData.FastMarker.key) == "string" then
+                speedKeybindData = decodedData
+            else
+                warn("Loaded speed keybind data has incorrect format, using defaults.")
+                -- Keep default speedKeybindData
+            end
+        else
+            warn("Failed to decode speed keybinds or data is not a table:", decodedData)
+            -- Keep default speedKeybindData
+        end
+    else
+        -- File doesn't exist or couldn't be read, keep default speedKeybindData
+        -- warn("Speed keybind file not found or unreadable, using defaults.")
+    end
+end
+
 local function saveCustomAnimations()
     ensureStalkieFolder()
-    local success, encodedCustom = pcall(HttpService.JSONEncode, HttpService, customAnimations)
+    local customToSave = {}
+    for animName, animId in pairs(customAnimations) do
+        customToSave[animName] = tostring(animId)
+    end
+    local success, encodedCustom = pcall(HttpService.JSONEncode, HttpService, customToSave)
     if success then
         local saveSuccess, errorMessage = pcall(function()
             writefile("stalkie/custom_animations.json", encodedCustom)
@@ -370,10 +427,8 @@ local function preloadAudios()
         return game:HttpGet(url)
     end)
     if success then
-        local decodeSuccess, data = pcall(function()
-            return HttpService:JSONDecode(response)
-        end)
-        if decodeSuccess and type(data) == "table" and data.audio_ids and type(data.audio_ids) == "table" then
+        local decodeSuccess, data = pcall(HttpService.JSONDecode, HttpService, response)
+        if decodeSuccess and data.audio_ids and type(data.audio_ids) == "table" then
             local audioCount = #data.audio_ids
             local fetchedCount = 0
             for _, animId in ipairs(data.audio_ids) do
@@ -946,13 +1001,14 @@ local function createAnimationListGui()
 
     loadFavorites()
     loadKeybinds()
+    loadSpeedKeybinds()
 
     -- Shadow Container Frame
     local shadowContainer = Instance.new("Frame")
     shadowContainer.Name = "shadowContainer"
     shadowContainer.BackgroundTransparency = 1
-    shadowContainer.Size = UDim2.new(0, 332, 0, 482)
-    shadowContainer.Position = UDim2.new(0.7, -166, 0.5, -241)
+    shadowContainer.Size = UDim2.new(0, 332, 0, 535) -- Adjusted height for keybinds
+    shadowContainer.Position = UDim2.new(0.7, -166, 0.5, -250)
     shadowContainer.ZIndex = 1
     shadowContainer.Parent = screenGui
     local shadowCorner = Instance.new("UICorner")
@@ -973,8 +1029,8 @@ local function createAnimationListGui()
     shadow.Parent = shadowContainer
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 300, 0, 450)
-    mainFrame.Position = UDim2.new(0.7, -150, 0.5, -225)
+    mainFrame.Size = UDim2.new(0, 300, 0, 505) -- Adjusted height to fit keybinds and provide more space
+    mainFrame.Position = UDim2.new(0.7, -150, 0.5, -234)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     mainFrame.BorderSizePixel = 0
     mainFrame.ZIndex = 2
@@ -1112,7 +1168,8 @@ local function createAnimationListGui()
     musicScrollFrame.Parent = contentFrame
 
     local speedSection = Instance.new("Frame")
-    speedSection.Size = UDim2.new(0.9, 0, 0, 60)
+    speedSection.Name = "SpeedSection"
+    speedSection.Size = UDim2.new(0.9, 0, 0, 90) -- Adjusted height for more compact markers
     speedSection.Position = UDim2.new(0.05, 0, 0, 350)
     speedSection.BackgroundTransparency = 1
     speedSection.Parent = contentFrame
@@ -1212,10 +1269,10 @@ local function createAnimationListGui()
                     audioIds[tostring(id)] = true
                 end
             else
-                warn("Failed to decode ids.json:", data)
+                warn("Failed to decode ids.json or invalid format: " .. tostring(data))
             end
         else
-            warn("Failed to fetch ids.json:", response)
+            warn("Failed to fetch ids.json: " .. tostring(response))
         end
     end
     loadAudioIds()
@@ -1348,7 +1405,7 @@ local function createAnimationListGui()
             keybindButton.Text = "Bind"
             removeBindButton.Visible = false
         end)
-
+        
         local buttonData = {
             Container = container,
             NameButton = nameButton,
@@ -1478,6 +1535,388 @@ local function createAnimationListGui()
         end)
     end)
 
+    local keybindInputActive = false
+    local currentAnimationForKeybind = nil
+
+    local function createMarker(name, initialRatio, defaultKey)
+        local markerContainer = Instance.new("Frame")
+        markerContainer.Name = name
+        markerContainer.Size = UDim2.new(0, 0, 1, 0) -- Width is 0, uses position
+        markerContainer.Position = UDim2.new(initialRatio, 0, 0, 0)
+        markerContainer.BackgroundTransparency = 1
+        markerContainer.ZIndex = 4 -- Above slider fill/handle
+        markerContainer.Parent = speedSection
+
+        local marker = Instance.new("Frame")
+        marker.Name = "Marker"
+        marker.Size = UDim2.new(0, 4, 0, 30) -- Shorter marker line (30px)
+        marker.Position = UDim2.new(0, -2, 0, 33) -- Position lower to avoid overlap with slider
+        marker.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        marker.BorderSizePixel = 0
+        marker.ZIndex = 5
+        local markerCorner = Instance.new("UICorner")
+        markerCorner.CornerRadius = UDim.new(1, 0)
+        markerCorner.Parent = marker
+        marker.Parent = markerContainer
+        
+        local markerStroke = Instance.new("UIStroke")
+        markerStroke.Color = Color3.fromRGB(0, 150, 255)
+        markerStroke.Thickness = 1
+        markerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+        markerStroke.Parent = marker
+        
+        local leftArrow = Instance.new("TextLabel")
+        leftArrow.Name = "LeftArrow"
+        leftArrow.Text = "←"
+        leftArrow.Font = Enum.Font.GothamMedium
+        leftArrow.TextSize = 16
+        leftArrow.TextColor3 = Color3.fromRGB(180, 180, 200)
+        leftArrow.BackgroundTransparency = 1
+        leftArrow.TextTransparency = 1 -- Start fully transparent
+        leftArrow.Size = UDim2.new(0, 40, 0, 40)
+        leftArrow.Position = UDim2.new(0, -40, 0, 33)
+        leftArrow.ZIndex = 5
+        leftArrow.Parent = markerContainer
+        
+        local rightArrow = Instance.new("TextLabel")
+        rightArrow.Name = "RightArrow"
+        rightArrow.Text = "→"
+        rightArrow.Font = Enum.Font.GothamMedium
+        rightArrow.TextSize = 16
+        rightArrow.TextColor3 = Color3.fromRGB(180, 180, 200)
+        rightArrow.BackgroundTransparency = 1
+        rightArrow.TextTransparency = 1 -- Start fully transparent
+        rightArrow.Size = UDim2.new(0, 40, 0, 40)
+        rightArrow.Position = UDim2.new(0, 4, 0, 33)
+        rightArrow.ZIndex = 5
+        rightArrow.Parent = markerContainer
+        
+        -- Create a larger proximity detection area
+        local proximityArea = Instance.new("Frame")
+        proximityArea.Name = "ProximityArea"
+        proximityArea.Size = UDim2.new(0, 120, 0, 50)
+        proximityArea.Position = UDim2.new(0, -60, 0, 23)
+        proximityArea.BackgroundTransparency = 1
+        proximityArea.ZIndex = 4
+        proximityArea.Parent = markerContainer
+
+        local hitbox = Instance.new("Frame") -- Larger hitbox for dragging
+        hitbox.Name = "Hitbox"
+        hitbox.Size = UDim2.new(0, 84, 0, 40) -- Much wider hitbox
+        hitbox.Position = UDim2.new(0, -41, 0, 33) -- Position to cover arrows and marker
+        hitbox.BackgroundTransparency = 1 -- Make hitbox invisible
+        hitbox.ZIndex = 6
+        hitbox.Parent = markerContainer
+
+        local keybind = Instance.new("TextButton")
+        keybind.Name = "KeybindButton"
+        keybind.Size = UDim2.new(0, 40, 0, 30) -- Larger keybind button
+        keybind.Position = UDim2.new(0, -20, 0, 63) -- Position further below marker
+        keybind.Text = defaultKey == "" and "None" or defaultKey
+        keybind.Font = Enum.Font.GothamMedium
+        keybind.TextSize = 14 -- Slightly larger text
+        keybind.TextColor3 = Color3.fromRGB(220, 220, 220)
+        keybind.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        keybind.AutoButtonColor = false
+        keybind.ZIndex = 5
+        local keybindCorner = Instance.new("UICorner")
+        keybindCorner.CornerRadius = UDim.new(0, 6)
+        keybindCorner.Parent = keybind
+        keybind.Parent = markerContainer
+        
+        local keybindStroke = Instance.new("UIStroke")
+        keybindStroke.Color = Color3.fromRGB(45, 45, 50)
+        keybindStroke.Thickness = 1
+        keybindStroke.Parent = keybind
+
+        local removeBindButton = Instance.new("TextButton")
+        removeBindButton.Name = "RemoveBindButton"
+        removeBindButton.Size = UDim2.new(0, 20, 0, 20) -- Standard size remove button
+        removeBindButton.Position = UDim2.new(0, 25, 0, 69) -- Position near keybind button but lower
+        removeBindButton.Text = "X"
+        removeBindButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+        removeBindButton.TextSize = 12
+        removeBindButton.Font = Enum.Font.GothamBold
+        removeBindButton.BackgroundTransparency = 1
+        removeBindButton.TextTransparency = 1 -- Start fully transparent
+        removeBindButton.ZIndex = 6
+        removeBindButton.Visible = defaultKey ~= "None" and defaultKey ~= "" -- Only show if key is set
+        removeBindButton.Parent = markerContainer
+        
+        -- Create proximity area for the keybind button
+        local keybindProximityArea = Instance.new("Frame")
+        keybindProximityArea.Name = "KeybindProximityArea"
+        keybindProximityArea.Size = UDim2.new(0, 80, 0, 40) -- Area covering keybind button
+        keybindProximityArea.Position = UDim2.new(0, -20, 0, 59) -- Position to cover keybind and X button
+        keybindProximityArea.BackgroundTransparency = 1
+        keybindProximityArea.ZIndex = 4
+        keybindProximityArea.Parent = markerContainer
+
+        keybind.MouseEnter:Connect(function()
+            TweenService:Create(keybind, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(50, 50, 60)}):Play()
+        end)
+        keybind.MouseLeave:Connect(function()
+            TweenService:Create(keybind, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 40, 45)}):Play()
+        end)
+
+        removeBindButton.MouseButton1Click:Connect(function()
+            speedKeybindData[name].key = ""
+            keybind.Text = "None"
+            removeBindButton.Visible = false
+            saveSpeedKeybinds()
+            if speedKeybindFunctions[name] then
+                speedKeybindFunctions[name]:Disconnect()
+                speedKeybindFunctions[name] = nil
+            end
+        end)
+
+        return markerContainer
+    end
+
+    local slowMarkerRatio = (speedKeybindData.SlowMarker and speedKeybindData.SlowMarker.ratio) or 0.2
+    local slowMarkerKey = (speedKeybindData.SlowMarker and speedKeybindData.SlowMarker.key) or "Q"
+    local fastMarkerRatio = (speedKeybindData.FastMarker and speedKeybindData.FastMarker.ratio) or 0.8
+    local fastMarkerKey = (speedKeybindData.FastMarker and speedKeybindData.FastMarker.key) or "E"
+
+    local SlowMarkerContainer = createMarker("SlowMarker", slowMarkerRatio, slowMarkerKey)
+    local FastMarkerContainer = createMarker("FastMarker", fastMarkerRatio, fastMarkerKey)
+
+    local currentDraggingMarker = nil
+    local function setupMarker(markerContainer)
+        local hitbox = markerContainer:FindFirstChild("Hitbox")
+        local keybindButton = markerContainer:FindFirstChild("KeybindButton")
+        local removeButton = markerContainer:FindFirstChild("RemoveBindButton")
+        local proximityArea = markerContainer:FindFirstChild("ProximityArea")
+        local leftArrow = markerContainer:FindFirstChild("LeftArrow")
+        local rightArrow = markerContainer:FindFirstChild("RightArrow")
+        local keybindProximityArea = markerContainer:FindFirstChild("KeybindProximityArea")
+        
+        if not hitbox or not keybindButton or not removeButton or
+           not proximityArea or not leftArrow or not rightArrow or
+           not keybindProximityArea then
+            warn("Missing required elements for marker setup")
+            return
+        end
+
+        local markerName = markerContainer.Name
+        local currentKeybindEnum = keybindButton.Text ~= "None" and keybindButton.Text ~= "" and Enum.KeyCode[keybindButton.Text] or nil
+        local fadeTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+        local fadeInTweens = {
+            left = TweenService:Create(leftArrow, fadeTweenInfo, {TextTransparency = 0}),
+            right = TweenService:Create(rightArrow, fadeTweenInfo, {TextTransparency = 0}),
+            removeBtn = removeButton.Visible and TweenService:Create(removeButton, fadeTweenInfo, {TextTransparency = 0}) or nil
+        }
+        local fadeOutTweens = {
+            left = TweenService:Create(leftArrow, fadeTweenInfo, {TextTransparency = 1}),
+            right = TweenService:Create(rightArrow, fadeTweenInfo, {TextTransparency = 1}),
+            removeBtn = removeButton.Visible and TweenService:Create(removeButton, fadeTweenInfo, {TextTransparency = 1}) or nil
+        }
+        local arrowsVisible = false
+        local removeBtnVisible = false
+        
+        -- Handle proximity detection for arrows
+        local function checkProximity(mousePosition)
+            local proximityAreaPos = proximityArea.AbsolutePosition
+            local proximityAreaSize = proximityArea.AbsoluteSize
+            
+            -- Check if mouse is inside proximity area
+            local isInside = 
+                mousePosition.X >= proximityAreaPos.X and
+                mousePosition.X <= proximityAreaPos.X + proximityAreaSize.X and
+                mousePosition.Y >= proximityAreaPos.Y and
+                mousePosition.Y <= proximityAreaPos.Y + proximityAreaSize.Y
+                
+            -- Show/hide arrows accordingly
+            if isInside and not arrowsVisible and not currentDraggingMarker then
+                arrowsVisible = true
+                fadeInTweens.left:Play()
+                fadeInTweens.right:Play()
+            elseif not isInside and arrowsVisible and not currentDraggingMarker then
+                arrowsVisible = false
+                fadeOutTweens.left:Play()
+                fadeOutTweens.right:Play()
+            end
+        end
+        
+        -- Show arrows while dragging
+        local function showArrowsWhileDragging()
+            if currentDraggingMarker == markerContainer and not arrowsVisible then
+                arrowsVisible = true
+                fadeInTweens.left:Play()
+                fadeInTweens.right:Play()
+            end
+        end
+        
+        -- Connect proximity checker to mouse movement
+        -- Handle proximity detection for remove button
+        local function checkKeybindProximity(mousePosition)
+            if not removeButton.Visible then return end -- Skip if button shouldn't be visible at all
+            
+            local proximityAreaPos = keybindProximityArea.AbsolutePosition
+            local proximityAreaSize = keybindProximityArea.AbsoluteSize
+            
+            -- Check if mouse is inside keybind proximity area
+            local isInside = 
+                mousePosition.X >= proximityAreaPos.X and
+                mousePosition.X <= proximityAreaPos.X + proximityAreaSize.X and
+                mousePosition.Y >= proximityAreaPos.Y and
+                mousePosition.Y <= proximityAreaPos.Y + proximityAreaSize.Y
+            
+            -- Show/hide remove button accordingly
+            if isInside and not removeBtnVisible then
+                removeBtnVisible = true
+                if fadeInTweens.removeBtn then fadeInTweens.removeBtn:Play() end
+            elseif not isInside and removeBtnVisible then
+                removeBtnVisible = false
+                if fadeOutTweens.removeBtn then fadeOutTweens.removeBtn:Play() end
+            end
+        end
+        
+        local proximityConnection = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                checkProximity(input.Position)
+                checkKeybindProximity(input.Position)
+                showArrowsWhileDragging()
+            end
+        end)
+        
+        hitbox.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                currentDraggingMarker = markerContainer
+                -- Show arrows when dragging starts
+                arrowsVisible = true
+                fadeInTweens.left:Play()
+                fadeInTweens.right:Play()
+            end
+        end)
+
+        -- Use UserInputService for global mouse up detection
+        local mouseUpConnection = UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if currentDraggingMarker == markerContainer then
+                    currentDraggingMarker = nil
+                    saveSpeedKeybinds() -- Save position when drag ends
+                    
+                    -- Check if mouse is still over proximity area after dragging
+                    local mousePos = UserInputService:GetMouseLocation()
+                    local proximityAreaPos = proximityArea.AbsolutePosition
+                    local proximityAreaSize = proximityArea.AbsoluteSize
+                    
+                    local isInside = 
+                        mousePos.X >= proximityAreaPos.X and
+                        mousePos.X <= proximityAreaPos.X + proximityAreaSize.X and
+                        mousePos.Y >= proximityAreaPos.Y and
+                        mousePos.Y <= proximityAreaPos.Y + proximityAreaSize.Y
+                    
+                    -- Only hide arrows if mouse is outside proximity area
+                    if not isInside then
+                        arrowsVisible = false
+                        fadeOutTweens.left:Play()
+                        fadeOutTweens.right:Play()
+                    end
+                end
+            end
+        end)
+
+        -- Use RunService for smooth dragging
+        local function updateMarkerFromMouse()
+            if currentDraggingMarker == markerContainer then
+                local mouse = UserInputService:GetMouseLocation()
+                local x = mouse.X - speedSection.AbsolutePosition.X
+                local ratio = math.clamp(x / speedSection.AbsoluteSize.X, 0, 1)
+                markerContainer.Position = UDim2.new(ratio, 0, 0, 0)
+                speedKeybindData[markerName].ratio = ratio -- Update data while dragging
+                -- We don't save file on every update to avoid performance issues
+            end
+        end
+        
+        local dragUpdateConnection = RunService.Heartbeat:Connect(updateMarkerFromMouse)
+
+        -- Cleanup connections when the GUI is destroyed
+        markerContainer.Destroying:Connect(function()
+            if mouseUpConnection then mouseUpConnection:Disconnect() end
+            if dragUpdateConnection then dragUpdateConnection:Disconnect() end
+            if proximityConnection then proximityConnection:Disconnect() end
+            if speedKeybindFunctions[markerName] then
+                speedKeybindFunctions[markerName]:Disconnect()
+                speedKeybindFunctions[markerName] = nil
+            end
+            -- Cancel any active tweens
+            fadeInTweens.left:Cancel()
+            fadeInTweens.right:Cancel()
+            fadeOutTweens.left:Cancel()
+            fadeOutTweens.right:Cancel()
+            if fadeInTweens.removeBtn then fadeInTweens.removeBtn:Cancel() end
+            if fadeOutTweens.removeBtn then fadeOutTweens.removeBtn:Cancel() end
+        end)
+
+        -- Keybind setting logic
+        keybindButton.MouseButton1Click:Connect(function()
+            if keybindInputActive then return end -- Prevent multiple binds at once
+            keybindInputActive = true -- Use the global flag
+            currentAnimationForKeybind = nil -- Ensure animation bind isn't active
+            keybindButton.Text = "..."
+
+            local connection
+            connection = UserInputService.InputBegan:Connect(function(input)
+                if not keybindInputActive then connection:Disconnect() return end -- Check if still binding this
+
+                if input.UserInputType == Enum.UserInputType.Keyboard then
+                    local keyCode = input.KeyCode
+                    if keyCode == Enum.KeyCode.Escape then -- Allow cancelling with Escape
+                       keybindButton.Text = currentKeybindEnum and currentKeybindEnum.Name or "None"
+                    else
+                        keybindButton.Text = keyCode.Name
+                        currentKeybindEnum = keyCode
+                        removeButton.Visible = true
+                        speedKeybindData[markerName].key = keyCode.Name -- Update data for saving
+                        saveSpeedKeybinds()
+
+                        -- Update keybind function
+                        if speedKeybindFunctions[markerName] then
+                            speedKeybindFunctions[markerName]:Disconnect()
+                        end
+                        speedKeybindFunctions[markerName] = UserInputService.InputBegan:Connect(function(input)
+                           if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == currentKeybindEnum then
+                                local ratio = markerContainer.Position.X.Scale
+                                updateSpeedSlider(ratio * 4)
+                            end
+                        end)
+                        
+                        -- Update remove button and its tweens
+                        removeButton.Visible = true
+                        removeButton.TextTransparency = removeBtnVisible and 0 or 1 -- Keep current transparency state
+                        -- Recreate tweens for the remove button
+                        fadeInTweens.removeBtn = TweenService:Create(removeButton, fadeTweenInfo, {TextTransparency = 0})
+                        fadeOutTweens.removeBtn = TweenService:Create(removeButton, fadeTweenInfo, {TextTransparency = 1})
+                   end
+                    keybindInputActive = false
+                    connection:Disconnect()
+                elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    -- Clicked elsewhere, cancel binding
+                    keybindButton.Text = currentKeybindEnum and currentKeybindEnum.Name or "None"
+                    keybindInputActive = false
+                    connection:Disconnect()
+                end
+            end)
+        end)
+
+        -- Initial keybind setup
+        if currentKeybindEnum then
+            if speedKeybindFunctions[markerName] then speedKeybindFunctions[markerName]:Disconnect() end
+            speedKeybindFunctions[markerName] = UserInputService.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == currentKeybindEnum then
+                    local ratio = markerContainer.Position.X.Scale
+                    updateSpeedSlider(ratio * 4)
+                end
+            end)
+        end
+    end
+
+    setupMarker(SlowMarkerContainer)
+    setupMarker(FastMarkerContainer)
+
+    -- Restore dragging functionality
     local dragging = false
     local dragOffset = Vector2.new(0, 0)
     local currentTween = nil
@@ -1564,8 +2003,8 @@ local function createCustomAnimationsGui()
     shadow.Parent = shadowContainer
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 300, 0, 450)
-    mainFrame.Position = UDim2.new(1, -320, 1, -470)
+    mainFrame.Size = UDim2.new(0, 300, 0, 450) -- Set to 450 height as requested
+    mainFrame.Position = UDim2.new(1, -320, 1, -500)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     mainFrame.BorderSizePixel = 0
     mainFrame.ZIndex = 2
@@ -1607,18 +2046,21 @@ local function createCustomAnimationsGui()
     titleLabel.Parent = titleBar
 
     local minimizeButton = Instance.new("TextButton")
-    minimizeButton.Size = UDim2.new(0, 32, 0, 32)
-    minimizeButton.Position = UDim2.new(1, -40, 0, 9)
+    minimizeButton.Size = UDim2.new(0, 40, 0, 40)
+    minimizeButton.Position = UDim2.new(1, -45, 0, 5)
     minimizeButton.Text = "−"
     minimizeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-    minimizeButton.TextSize = 24
+    minimizeButton.TextSize = 28
     minimizeButton.Font = Enum.Font.GothamBold
-    minimizeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
-    minimizeButton.BackgroundTransparency = 0.2
-    local minCorner = Instance.new("UICorner")
-    minCorner.CornerRadius = UDim.new(1, 0)
-    minCorner.Parent = minimizeButton
+    minimizeButton.BackgroundTransparency = 1
     minimizeButton.Parent = titleBar
+    
+    minimizeButton.MouseEnter:Connect(function()
+        minimizeButton.TextColor3 = Color3.fromRGB(0, 191, 255)
+    end)
+    minimizeButton.MouseLeave:Connect(function()
+        minimizeButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+    end)
 
     local contentFrame = Instance.new("Frame")
     contentFrame.Size = UDim2.new(1, 0, 1, -110)
@@ -1715,7 +2157,8 @@ local function createCustomAnimationsGui()
     scrollFrame.Parent = contentFrame
 
     local speedSection = Instance.new("Frame")
-    speedSection.Size = UDim2.new(0.9, 0, 0, 60)
+    speedSection.Name = "SpeedSection" -- Add name for easier referencing
+    speedSection.Size = UDim2.new(0.9, 0, 0, 90) -- Increased height for markers
     speedSection.Position = UDim2.new(0.05, 0, 0, 350)
     speedSection.BackgroundTransparency = 1
     speedSection.Parent = contentFrame
@@ -1799,8 +2242,7 @@ local function createCustomAnimationsGui()
         end
     end)
 
-    local keybindInputActive = false
-    local currentAnimationForKeybind = nil
+    -- No keybind markers for Custom Animations GUI - speed slider only
 
     local function createCustomButton(animName, animId)
         local container = Instance.new("Frame")
@@ -2004,20 +2446,13 @@ local function createCustomAnimationsGui()
     updateCustomButtons()
 
     local originalGuiHeight = mainFrame.Size.Y.Offset
-    local minimizedGuiHeight = titleBar.Size.Y.Offset + 10
+    local minimizedGuiHeight = titleBar.Size.Y.Offset
     local minimized = false
     local tweenInfoFade = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local tweenInfoSize = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
     local originalTransparencies = {}
-    local toggles = {reanimationToggle, animationListToggle, customAnimationsToggle, musicToggle}
-
-for _, toggle in ipairs(toggles) do
-    originalTransparencies[toggle.ToggleFill] = {
-        BackgroundTransparency = toggle.GetState() and 0 or 1
-    }
-    originalTransparencies[toggle.ToggleButton] = {
-        Position = toggle.GetState() and UDim2.new(0.5, 2, 0.5, -12) or UDim2.new(0, 2, 0.5, -12)
-    }
-end
+    local originalShadowSize = shadowContainer.Size
+    local originalShadowPosition = shadowContainer.Position
 
 for _, child in pairs(contentFrame:GetDescendants()) do
     if child:IsA("GuiObject") and not originalTransparencies[child] then
@@ -2028,17 +2463,14 @@ for _, child in pairs(contentFrame:GetDescendants()) do
     end
 end
 
--- Updated minimizeButton.MouseButton1Click handler
 minimizeButton.MouseButton1Click:Connect(function()
     minimized = not minimized
-    local tweenInfoFade = TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-    local tweenInfoSize = TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
 
     if minimized then
         minimizeButton.Text = "+"
         contentFrame.Visible = false
 
-        TweenService:Create(contentFrame, tweenInfoFade, {BackgroundTransparency = 1}):Play()
+        -- Fade out UI elements
         for _, child in pairs(contentFrame:GetDescendants()) do
             if child:IsA("GuiObject") then
                 TweenService:Create(child, tweenInfoFade, {BackgroundTransparency = 1}):Play()
@@ -2047,43 +2479,40 @@ minimizeButton.MouseButton1Click:Connect(function()
                 end
             end
         end
-
+        
+        -- Fade out shadow completely
+        TweenService:Create(shadow, tweenInfoFade, {
+            ImageTransparency = 1 -- Completely transparent
+        }):Play()
+        
+        -- Resize main frame
         local sizeTween = TweenService:Create(
             mainFrame,
             tweenInfoSize,
             {Size = UDim2.new(0, mainFrame.Size.X.Offset, 0, minimizedGuiHeight)}
         )
         sizeTween:Play()
-        TweenService:Create(shadowContainer, tweenInfoSize, {
-            Size = UDim2.new(0, 332, 0, minimizedGuiHeight + 12),
-            Position = UDim2.new(0, mainFrame.Position.X.Offset - 6, 0, mainFrame.Position.Y.Offset - 3)
-        }):Play()
-        TweenService:Create(shadow, tweenInfoSize, {
-            ImageTransparency = 0.25
-        }):Play()
     else
         minimizeButton.Text = "−"
         contentFrame.Visible = true
-
+        
+        -- Keep shadow invisible during resize
+        shadow.ImageTransparency = 1
+        
+        -- Resize main frame
         local sizeTween = TweenService:Create(
             mainFrame,
             tweenInfoSize,
             {Size = UDim2.new(0, mainFrame.Size.X.Offset, 0, originalGuiHeight)}
         )
         sizeTween:Play()
-        TweenService:Create(shadowContainer, tweenInfoSize, {
-            Size = UDim2.new(0, 352, 0, originalGuiHeight + 31),
-            Position = UDim2.new(0, mainFrame.Position.X.Offset - 16, 0, mainFrame.Position.Y.Offset - 16)
-        }):Play()
-        TweenService:Create(shadow, tweenInfoSize, {
-            ImageTransparency = 0.3
-        }):Play()
+        
+        -- Update shadow container position to be behind the current mainFrame position
+        shadowContainer.Size = originalShadowSize
+        -- Update position in completed handler to ensure it's correctly positioned
 
         sizeTween.Completed:Connect(function()
-            TweenService:Create(contentFrame, tweenInfoFade, {
-                BackgroundTransparency = originalTransparencies[contentFrame] and 
-                originalTransparencies[contentFrame].BackgroundTransparency or 1
-            }):Play()
+            -- Restore UI element transparencies
             for _, child in pairs(contentFrame:GetDescendants()) do
                 if child:IsA("GuiObject") then
                     local orig = originalTransparencies[child]
@@ -2100,6 +2529,18 @@ minimizeButton.MouseButton1Click:Connect(function()
                     end
                 end
             end
+            
+            -- Position shadow container before fading in
+            -- Calculate shadow position relative to mainFrame's current position
+            shadowContainer.Size = UDim2.new(0, mainFrame.Size.X.Offset + 32, 0, mainFrame.Size.Y.Offset + 32)
+            shadowContainer.Position = UDim2.new(0, mainFrame.AbsolutePosition.X - 16, 0, mainFrame.AbsolutePosition.Y - 16)
+            
+            -- Fade in shadow with a slight delay after GUI is maximized
+            task.delay(0.1, function()
+                TweenService:Create(shadow, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    ImageTransparency = 0.3
+                }):Play()
+            end)
         end)
     end
 end)
