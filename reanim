@@ -796,11 +796,21 @@ local function stopFakeAnimation()
     animationState.isRunning = false
     stopAudio()
     if ghostClone then
+        -- Reset all motor positions
         for motor, orig in pairs(ghostOriginalMotorCFrames) do
             if motor and motor:IsA("Motor6D") then
                 motor.C0 = orig.C0
             end
         end
+
+        -- Explicitly reset neck orientation
+        local neck = ghostClone:FindFirstChild("Head") and ghostClone:FindFirstChild("Head"):FindFirstChild("Neck")
+            or ghostClone:FindFirstChild("Torso") and ghostClone:FindFirstChild("Torso"):FindFirstChild("Neck")
+        if neck and originalNeckC0 then
+            neck.C0 = originalNeckC0
+        end
+
+        -- Re-enable scripts
         for _, script in pairs(ghostClone:GetChildren()) do
             if script:IsA("LocalScript") and not script.Enabled and script ~= originalAnimateScript then
                 script.Enabled = true
@@ -2980,15 +2990,90 @@ local function createDraggableGui(getGhostEnabled, toggleGhost)
     end)
 
     closeButton.MouseButton1Click:Connect(function()
-        screenGui:Destroy()
+        -- Stop any ongoing animation and audio
+        stopFakeAnimation()
+
+        -- Disable ghost mode if enabled
+        if ghostEnabled then
+            setGhostEnabled(false)
+        end
+
+        -- Disconnect all connections
+        if updateConnection then
+            updateConnection:Disconnect()
+            updateConnection = nil
+        end
+        if animationState.connection then
+            animationState.connection:Disconnect()
+            animationState.connection = nil
+        end
+
+        -- Destroy all GUIs
+        if screenGui then
+            screenGui:Destroy()
+        end
         if animationListGui then
             animationListGui:Destroy()
         end
         if customAnimationsGui then
             customAnimationsGui:Destroy()
         end
+
+        -- Clear caches
         table.clear(animationCache)
         table.clear(audioCache)
+        table.clear(favoriteAnimations)
+        table.clear(animationKeybinds)
+        table.clear(customAnimations)
+        table.clear(ghostOriginalSizes)
+        table.clear(ghostOriginalMotorCFrames)
+        table.clear(activeNotifications)
+        table.clear(preservedGuis)
+        table.clear(animationButtons)
+        table.clear(customButtons)
+
+        -- Restore head movement if modified
+        restoreHeadMovement()
+
+        -- Reset variables
+        ghostEnabled = false
+        originalCharacter = nil
+        ghostClone = nil
+        originalCFrame = nil
+        originalAnimateScript = nil
+        ghostOriginalHipHeight = nil
+        currentSound = nil
+        musicEnabled = true
+        hasFetchedAnimations = false
+        hasCreatedFavoritesFile = false
+        hasCreatedKeybindsFile = false
+        hasCreatedCustomAnimationsFile = false
+        originalNeckC0 = nil
+        animationState = {
+            isRunning = false,
+            currentId = nil,
+            keyframes = nil,
+            totalDuration = 0,
+            elapsedTime = 0,
+            speed = 1,
+            connection = nil
+        }
+
+        -- Clear any remaining sounds
+        for _, sound in pairs(audioCache) do
+            if sound then
+                sound:Destroy()
+            end
+        end
+
+        -- Reset/kill character
+        local character = LocalPlayer.Character
+        if character then
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.Health = 0  -- Kill the character
+            end
+        end
     end)
 
     local dragging = false
