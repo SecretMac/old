@@ -103,8 +103,8 @@ local customAnimations = {}
 
 local KEYBIND_SPEED_FILE = "stalkie/speed_keybinds.json"
 local speedKeybindData = {
-    SlowMarker = {ratio = 0.2, key = "Q"}, -- Default values
-    FastMarker = {ratio = 0.8, key = "E"}
+    SlowMarker = {ratio = 0.2, key = ""}, -- Default values
+    FastMarker = {ratio = 0.8, key = ""}
 }
 local speedKeybindFunctions = {}
 
@@ -211,24 +211,20 @@ end
 
 local function saveSpeedKeybinds()
     ensureStalkieFolder()
-    local dataToSave = {
-        SlowMarker = {
-            ratio = speedKeybindData.SlowMarker.ratio,
-            key = speedKeybindData.SlowMarker.key
-        },
-        FastMarker = {
-            ratio = speedKeybindData.FastMarker.ratio,
-            key = speedKeybindData.FastMarker.key
-        }
+    local keybindsToSave = {
+        SlowMarker = speedKeybindData.SlowMarker,
+        FastMarker = speedKeybindData.FastMarker
     }
-
-    local success, encodedData = pcall(HttpService.JSONEncode, HttpService, dataToSave)
+    local success, encodedKeybinds = pcall(HttpService.JSONEncode, HttpService, keybindsToSave)
     if success then
-        pcall(function()
-            writefile(KEYBIND_SPEED_FILE, encodedData)
+        local saveSuccess, errorMessage = pcall(function()
+            writefile(KEYBIND_SPEED_FILE, encodedKeybinds)
         end)
+        if not saveSuccess then
+            warn("Error saving speed keybinds:", errorMessage)
+        end
     else
-        warn("Error encoding speed keybinds:", encodedData)
+        warn("Error encoding speed keybinds:", encodedKeybinds)
     end
 end
 
@@ -754,12 +750,15 @@ local function setGhostEnabled(newState)
         end
 
         local origHumanoid = originalCharacter:FindFirstChildWhichIsA("Humanoid")
-        preserveGuis()
-        LocalPlayer.Character = originalCharacter
-        if origHumanoid then
-            Workspace.CurrentCamera.CameraSubject = origHumanoid
-        end
-        restoreGuis()
+preserveGuis()
+if origHumanoid then
+    origHumanoid.Health = 0  -- Reset character health
+end
+LocalPlayer.Character = originalCharacter
+if origHumanoid then
+    Workspace.CurrentCamera.CameraSubject = origHumanoid
+end
+restoreGuis()
 
         if animate then
             task.wait(0.1)
@@ -1622,7 +1621,7 @@ local function createAnimationListGui()
         keybind.Name = "KeybindButton"
         keybind.Size = UDim2.new(0, 40, 0, 30) -- Larger keybind button
         keybind.Position = UDim2.new(0, -20, 0, 63) -- Position further below marker
-        keybind.Text = defaultKey == "" and "None" or defaultKey
+        keybind.Text = defaultKey == "" and "key" or defaultKey
         keybind.Font = Enum.Font.GothamMedium
         keybind.TextSize = 14 -- Slightly larger text
         keybind.TextColor3 = Color3.fromRGB(220, 220, 220)
@@ -1671,7 +1670,7 @@ local function createAnimationListGui()
 
         removeBindButton.MouseButton1Click:Connect(function()
             speedKeybindData[name].key = ""
-            keybind.Text = "None"
+            keybind.Text = "key"
             removeBindButton.Visible = false
             saveSpeedKeybinds()
             if speedKeybindFunctions[name] then
@@ -1684,9 +1683,9 @@ local function createAnimationListGui()
     end
 
     local slowMarkerRatio = (speedKeybindData.SlowMarker and speedKeybindData.SlowMarker.ratio) or 0.2
-    local slowMarkerKey = (speedKeybindData.SlowMarker and speedKeybindData.SlowMarker.key) or "Q"
+    local slowMarkerKey = (speedKeybindData.SlowMarker and speedKeybindData.SlowMarker.key) or ""
     local fastMarkerRatio = (speedKeybindData.FastMarker and speedKeybindData.FastMarker.ratio) or 0.8
-    local fastMarkerKey = (speedKeybindData.FastMarker and speedKeybindData.FastMarker.key) or "E"
+    local fastMarkerKey = (speedKeybindData.FastMarker and speedKeybindData.FastMarker.key) or ""
 
     local SlowMarkerContainer = createMarker("SlowMarker", slowMarkerRatio, slowMarkerKey)
     local FastMarkerContainer = createMarker("FastMarker", fastMarkerRatio, fastMarkerKey)
@@ -1709,7 +1708,7 @@ local function createAnimationListGui()
         end
 
         local markerName = markerContainer.Name
-        local currentKeybindEnum = keybindButton.Text ~= "None" and keybindButton.Text ~= "" and Enum.KeyCode[keybindButton.Text] or nil
+        local currentKeybindEnum = keybindButton.Text ~= "key" and keybindButton.Text ~= "" and Enum.KeyCode[keybindButton.Text] or nil
         local fadeTweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
         local fadeInTweens = {
             left = TweenService:Create(leftArrow, fadeTweenInfo, {TextTransparency = 0}),
