@@ -5,6 +5,9 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
+
+-- Store last death position
+local lastDeathCFrame = nil
 local HttpService = game:GetService("HttpService")
 
 local ghostEnabled = false
@@ -42,6 +45,37 @@ local animationState = {
 local BuiltInAnimationsR15 = {}
 local BuiltInAnimationsOrder = {}
 local hasFetchedAnimations = false
+
+-- Respawn at last death location logic
+local function setupRespawnAtDeath()
+    local function onCharacterAdded(character)
+        -- Teleport to last death position if available
+        if lastDeathCFrame then
+            local hrp = character:WaitForChild("HumanoidRootPart", 5)
+            if hrp then
+                hrp.CFrame = lastDeathCFrame
+            end
+            lastDeathCFrame = nil -- Only teleport once after dying
+        end
+        -- Listen for death
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid.Died:Connect(function()
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    lastDeathCFrame = hrp.CFrame
+                end
+            end)
+        end
+    end
+    if LocalPlayer.Character then
+        onCharacterAdded(LocalPlayer.Character)
+    end
+    LocalPlayer.CharacterAdded:Connect(onCharacterAdded)
+end
+
+setupRespawnAtDeath()
+
 local function fetchAnimationsFromGitHub()
     if hasFetchedAnimations then return end
     hasFetchedAnimations = true
