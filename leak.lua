@@ -6,7 +6,7 @@ local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 
 -- Proxy server configuration
-local PROXY_URL = "https://proxy-vjc2.onrender.com/query"
+local PROXY_URL = "https://proxy-tdjq.onrender.com/query"
 local FREE_API_URL = "https://leakcheck.io/api/public?check="
 
 -- Colors for different states
