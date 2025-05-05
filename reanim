@@ -785,9 +785,6 @@ local function setGhostEnabled(newState)
 
         local origHumanoid = originalCharacter:FindFirstChildWhichIsA("Humanoid")
 preserveGuis()
-if origHumanoid and animationState.isRunning then
-    origHumanoid.Health = 0  -- Reset character health only if animation is playing
-end
 LocalPlayer.Character = originalCharacter
 if origHumanoid then
     Workspace.CurrentCamera.CameraSubject = origHumanoid
@@ -875,7 +872,7 @@ local function playFakeAnimation(animationId)
 
     local humanoid = ghostClone:FindFirstChildWhichIsA("Humanoid")
     if not humanoid then
-        warn("Reanimate first idiot !")
+        warn("No Humanoid found in Clone!")
         return
     end
 
