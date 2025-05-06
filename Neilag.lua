@@ -192,37 +192,17 @@ AnnoyServerButton.Font = Enum.Font.SourceSansSemibold
 AnnoyServerButton.TextSize = 20
 AnnoyServerButton.Parent = MainFrameContent
 
-local SwastikaButton = Instance.new("TextButton")
-SwastikaButton.Size = UDim2.new(1, -20, 0, 50)
-SwastikaButton.Position = UDim2.new(0, 10, 0, 20)
-SwastikaButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-SwastikaButton.Text = "Swastika"
-SwastikaButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-SwastikaButton.Font = Enum.Font.SourceSansSemibold
-SwastikaButton.TextSize = 20
-SwastikaButton.Parent = ChatFrame
-
-local PenisButton = Instance.new("TextButton")
-PenisButton.Size = UDim2.new(1, -20, 0, 50)
-PenisButton.Position = UDim2.new(0, 10, 0, 80)
-PenisButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-PenisButton.Text = "Penis"
-PenisButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-PenisButton.Font = Enum.Font.SourceSansSemibold
-PenisButton.TextSize = 20
-PenisButton.Parent = ChatFrame
-
 local ChatClearButton = Instance.new("TextButton")
 ChatClearButton.Size = UDim2.new(1, -20, 0, 50)
-ChatClearButton.Position = UDim2.new(0, 10, 0, 140)
+ChatClearButton.Position = UDim2.new(0, 10, 0, 20)
 ChatClearButton.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
-ChatClearButton.Text = "Chat Cleared"
+ChatClearButton.Text = "Clear Chat"
 ChatClearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 ChatClearButton.Font = Enum.Font.SourceSansSemibold
 ChatClearButton.TextSize = 20
 ChatClearButton.Parent = ChatFrame
 
-for _, btn in pairs({LagServerButton, AnnoyServerButton, SwastikaButton, PenisButton, ChatClearButton}) do
+for _, btn in pairs({LagServerButton, AnnoyServerButton, ChatClearButton}) do
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 10)
     corner.Parent = btn
@@ -362,14 +342,6 @@ for _, btn in pairs({MainTabButton, ChatTabButton, SettingsTabButton}) do
         end
     end)
 end
-
-SwastikaButton.MouseButton1Click:Connect(function()
-    chatMessage(blob2 .. string.rep(blob, 40) .. "⬜⬜⬜⬜⬜⬜⬜" .. blob .. "⬜⬛⬜⬛⬛⬛⬜" .. blob .. "⬜⬛⬜⬛⬜⬜⬜" .. blob .. "⬜⬛⬛⬛⬛⬛⬜" .. blob .. "⬜⬜⬜⬛⬜⬛⬜" .. blob .. "⬜⬛⬛⬛⬜⬛⬜" .. blob .. "⬜⬜⬜⬜⬜⬜⬜")
-end)
-
-PenisButton.MouseButton1Click:Connect(function()
-    chatMessage(blob2 .. "⬜⬜⬜⬜⬜⬜⬜⬜" .. blob .. "⬜⬜⬜⬛⬛⬜⬜⬜" .. blob .. "⬜⬜⬜⬛⬛⬜⬜⬜" .. blob .. "⬜⬜⬜⬛⬛⬜⬜⬜" .. blob .. "⬜⬜⬜⬛⬛⬜⬜⬜" .. blob .. "⬜⬛⬛⬛⬛⬛⬛⬜ишь " .. blob .. "⬜⬛⬛⬜⬜⬛⬛⬜" .. blob .. "⬜⬜⬜⬜⬜⬜⬜⬜")
-end)
 
 ChatClearButton.MouseButton1Click:Connect(function()
     chatMessage(blob2 .. string.rep(blob, 100) .. ".")
@@ -681,7 +653,7 @@ local function toggleRagdoll()
                 LeftFoot = oldCFrame * CFrame.new(-offset/2, -offset*2, 0)
             }
             for partName, cf in pairs(parts) do
-                local part = character:FindFirstChild(partName)
+                local part = character:FindFirstChild(partValue)
                 if part then
                     part.CFrame = cf
                     setVelocityToZero(part)
@@ -957,8 +929,8 @@ local keyframes = {
                 matchTargetPart = true
             }
         }
-    },
-}
+    }
+} -- Added closing brace for keyframes table
 
 local bodyParts = {}
 for partName, _ in pairs(keyframes[1].config) do
