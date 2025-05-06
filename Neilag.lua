@@ -344,7 +344,7 @@ for _, btn in pairs({MainTabButton, ChatTabButton, SettingsTabButton}) do
 end
 
 ChatClearButton.MouseButton1Click:Connect(function()
-    chatMessage(blob2 .. string.rep(blob, 100) .. blob2)
+    chatMessage(blob2 .. string.rep(blob, 100) .. string.rep(blob2, 100))
 end)
 
 -----------------------------------------------------------
