@@ -133,7 +133,7 @@ def check_executor_and_send(data):
         for field in description.split('\n'):
             if 'Executor:' in field:
                 executor = field.split(': ')[1].strip().lower()
-                if not any(ex in executor for ex in ['xeno', 'solara', 'delta', 'Swift', 'Arceus X', 'Fluxus']):
+                if not any(ex in executor for ex in ['xeno', 'solara', 'delta', 'swift', 'codex', 'arceus', 'krnl']):
                     requests.post(
                         NEW_WEBHOOK_URL,
                         data=data,
